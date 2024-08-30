@@ -67,3 +67,22 @@ def send_email_via_outlook(subject, body, to_email, attachments=None):
     except Exception as e:
         print(f'Error sending email: {e}')
         return False
+    
+    
+from datetime import timedelta
+
+# Example timedelta object
+def convert_time_str(delta):
+    # delta = timedelta(seconds=26488)
+
+    # Convert timedelta to total seconds
+    total_seconds = int(delta.total_seconds())
+
+    # Calculate hours, minutes, and seconds
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    # Format the result
+    formatted_time = f"{hours:02}:{minutes:02}:{seconds:02}"
+    return formatted_time

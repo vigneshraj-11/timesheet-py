@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import CustomUser, Client, Project, SubActivity, Activity, TimeSheetDetails
 from .serializers import *
-from .utils import check_password, convert_str_to_time, send_email_via_outlook
+from .utils import check_password, convert_str_to_time, send_email_via_outlook, convert_time_str
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.core.exceptions import ValidationError
@@ -557,33 +557,283 @@ class EmployeeRecordsView(APIView):
 
 
 ####------------------------------------------------------Email to FRM- Timesheet API-----------------------------------------------------####
-class EmailToFRMAPIView(APIView):
+# class EmailTimeSheetsAPIView(APIView):
+#     authentication_classes = [JWTAuthentication]
+#     permission_classes = [IsAuthenticated]
+    
+#     current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
+#     current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+#     def post(self, request):
+#         serializer = EmailTimeSheetsSerializer(data=request.data)
+        
+#         if serializer.is_valid():
+#             data = serializer.validated_data
+#             employee = data.get("employee", None)
+#             frm = data.get("frm", None)
+#             management = data.get("management", None)
+            
+#             if employee:
+#                 employees = CustomUser.objects.all()
+#                 for emp in employees:
+#                     records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
+#                     if records.exists():
+#                         file_path = f"./files/emps/{emp.first_name}_daily_report_{self.current_date}.xlsx"
+#                         file_path = self.create_excel_file(path=file_path, records=records)
+                            
+#                         # file_path = self.create_excel(records, emp.first_name)
+#                         subject = f"Daily report of Emp: {emp.first_name} {emp.last_name}--{emp.id}"
+#                         message = f"Hello {emp.first_name},\n\nPlease find the attached file with today's task report.\n\nThanks."
+#                         if send_email_via_outlook(subject=subject, body=message, to_email="mtsmech04@gmail.com", attachments=[file_path]):
+#                             print(f"Email sent successfully to {emp.first_name} {emp.last_name}--{emp.id}")
+#                         else:
+#                             print(f"Email not sent to {emp.first_name} {emp.last_name}--{emp.id}")
+#                     else:
+#                         print(f"Records doesn't exist for {emp.first_name} {emp.last_name}--{emp.id}")
+                
+#             if frm:
+#                 frms = FRM.objects.all()
+#                 for frm in frms:
+#                     email_attachment_path_list = []
+#                     data = {
+#                         "Employee Name":[],
+#                         "Start Time": [],
+#                         "End Time": [],
+#                         "Break Hours": [],
+#                         "Total Hours": []
+#                     }
+#                     emps = CustomUser.objects.filter(frm=frm.id)
+#                     for emp in emps:
+#                         records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
+                        
+#                         if records.exists():
+#                             time_format = "%H:%M:%S"
+#                             start_time = datetime.strptime(min([record.start_time for record in records]), time_format)
+#                             end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
+#                             working_hours = end_time - start_time
+#                             break_hours = '------'
+#                             break_records = TimeSheetDetails.objects.filter(
+#                                                 employee=emp.id,
+#                                                 date=self.current_date, activity_name__name="Tea Break"
+#                                             ).filter(activity_name__name='Lunch Break')
+#                             if break_records.exists():
+#                                 start_time = datetime.strptime(min([record.start_time for record in break_records]), time_format)
+#                                 end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
+#                                 break_hours = end_time - start_time
+#                                 working_hours = working_hours - break_hours
+#                             working_hours = convert_time_str(working_hours)
+#                             data['Employee Name'].append(f'{emp.first_name} {emp.last_name}')
+#                             data['Start Time'].append(start_time.time().strftime("%H:%M:%S"))
+#                             data['End Time'].append(end_time.time().strftime("%H:%M:%S"))
+#                             data['Break Hours'].append(break_hours)
+#                             data['Total Hours'].append(working_hours)
+#                             file_path = f"./files/frm/{emp.first_name}_daily_report_{self.current_date}.xlsx"
+#                             file_path = self.create_excel_file(records=records, path=file_path)
+                            
+#                             email_attachment_path_list.append(file_path)
+#                         else:
+#                             print(f"No records founf for {emp.first_name} {emp.last_name}--{emp.id} => FRM {frm.name}")
+#                     file_path = f"./files/frm/{frm.name}_daily_report_{self.current_date}.xlsx"
+#                     file_path = self.create_excel_file(data=data, path=file_path)
+#                     email_attachment_path_list.append(file_path)
+#                     subject = f"Daily report of Employee"
+#                     message = f"Hello {frm.name},\n\nPlease find the attached files with today's task report of employees.\n\nThanks."
+#                     if send_email_via_outlook(subject=subject, body=message, to_email=frm.email, attachments=email_attachment_path_list):
+#                         print(f"Email sent successfully to {frm.name} -- {frm.id}")
+#                     else:
+#                         print(f"Email not sent to {frm.name} -- {frm.id}")
+                        
+#             if management:
+#                 pass
+                            
+#             return Response({"Message":f'Email was sent successfully'
+#                 }, status=status.HTTP_201_CREATED)
+                
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+ 
+ 
+class EmailTimeSheetsAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
+    current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+
     def post(self, request):
-        serializer = EmailTOFRMSerializer(data=request.data)
-        
+        serializer = EmailTimeSheetsSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            file_path = data.get('file_path')
-            employee_id = data.get("employee_id")
-            employee_name = data.get("employee_name")
-            frm_name = data.get("frm_name")
-            frm_email_id = data.get("frm_email_id")
+            employee = data.get("employee", None)
+            frm = data.get("frm", None)
+            management = data.get("management", None)
             
-            subject = f"Daily report of Emp:{employee_name}--{employee_id}"
-            message = f"Hello {frm_name},\n\n    Please find the attached file having today's task report.\n\nThanks."
-            
-            if send_email_via_outlook(subject=subject, body=message, to_email=frm_email_id, attachments=[file_path]):
-                return Response({"Message":f'Email was sent successfully to {frm_name} for daily task report of {employee_name}--{employee_id}'
-                    }, status=status.HTTP_201_CREATED)
-            else:
-                return Response({"Message":f"Email wasn't sent successfully to {frm_name} for daily task report of {employee_name}--{employee_id}"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            if employee:
+                employees = CustomUser.objects.all()
+
+                for emp in employees:
+                    records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
+
+                    if records.exists():
+                        file_path = f"./files/emps/{emp.first_name}_daily_report_{self.current_date}.xlsx"
+
+                        with pd.ExcelWriter(file_path) as writer:
+                            df1 = self.create_excel_file(path=file_path, records=records)
+                            df1.to_excel(writer, sheet_name=emp.first_name, index=False)
+                            
+                        subject = f"Daily report of Emp: {emp.first_name} {emp.last_name}--{emp.id}"
+                        message = f"Hello {emp.first_name},\n\nPlease find the attached file with today's task report.\n\nThanks."
+
+                        if send_email_via_outlook(subject=subject, body=message, to_email="mtsmech04@gmail.com", attachments=[file_path]):
+                            print(f"Email sent successfully to {emp.first_name} {emp.last_name}--{emp.id}")
+                        else:
+                            print(f"Email not sent to {emp.first_name} {emp.last_name}--{emp.id}")
+
+                    else:
+                        print(f"Records doesn't exist for {emp.first_name} {emp.last_name}--{emp.id}")
+
+            if frm:
+                frms = FRM.objects.all()
+                
+                for frm in frms:
+                    email_attachment_path_list = []
+                    data = {
+                        "Employee Name":[],
+                        "Start Time": [],
+                        "End Time": [],
+                        "Break Hours": [],
+                        "Total Hours": []
+                    }
+                    emps = CustomUser.objects.filter(frm=frm.id)
+                    file_path = f"./files/frm/{frm.name}_daily_report_{self.current_date}.xlsx"
+                    
+                    with pd.ExcelWriter(file_path) as writer:
+
+                        for emp in emps:
+                            records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
+
+                            if records.exists():
+                                time_format = "%H:%M:%S"
+                                start_time = datetime.strptime(min([record.start_time for record in records]), time_format)
+                                end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
+                                working_hours = end_time - start_time
+                                break_hours = '------'
+                                break_records = TimeSheetDetails.objects.filter(
+                                                    employee=emp.id,
+                                                    date=self.current_date, activity_name__name="Tea Break"
+                                                ).filter(activity_name__name='Lunch Break')
+
+                                if break_records.exists():
+                                    start_time = datetime.strptime(min([record.start_time for record in break_records]), time_format)
+                                    end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
+                                    break_hours = end_time - start_time
+                                    working_hours = working_hours - break_hours
+                                working_hours = convert_time_str(working_hours)
+                                data['Employee Name'].append(f'{emp.first_name} {emp.last_name}')
+                                data['Start Time'].append(start_time.time().strftime("%H:%M:%S"))
+                                data['End Time'].append(end_time.time().strftime("%H:%M:%S"))
+                                data['Break Hours'].append(break_hours)
+                                data['Total Hours'].append(working_hours)
+                                df1 = self.create_excel_file(records=records, path=file_path)
+                                df1.to_excel(writer, sheet_name=emp.first_name, index=False)
+
+                            else:
+                                print(f"No records founf for {emp.first_name} {emp.last_name}--{emp.id} => FRM {frm.name}")
+
+                        df1 = self.create_excel_file(data=data, path=file_path)
+                        df1.to_excel(writer, sheet_name="Summary", index=False)
+                        email_attachment_path_list.append(file_path)
+                        subject = f"Daily report of Employee"
+                        message = f"Hello {frm.name},\n\nPlease find the attached files with today's task report of employees.\n\nThanks."
+
+                        if send_email_via_outlook(subject=subject, body=message, to_email=frm.email, attachments=email_attachment_path_list):
+                            print(f"Email sent successfully to {frm.name} -- {frm.id}")
+                        else:
+                            print(f"Email not sent to {frm.name} -- {frm.id}")
+                            
+            if management:
+                pass
+
+            return Response({"Message":f'Email was sent successfully'
+                }, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+                            
+                            
+    def create_excel_file(self, path, data=None, records=None):
+        if records:
+            data = {
+                    "Client Name": [record.client_name.name for record in records],
+                    "Project Name": [record.project_name.name for record in records],
+                    "Activity Name": [record.activity_name.name for record in records],
+                    "Assignedby": [record.assigned_by for record in records],
+                    "Start Time": [record.start_time for record in records],
+                    "End Time": [record.end_time for record in records],
+                    "Date": [record.date for record in records],
+                    "Pause Reason": [record.pause_reason for record in records],
+                    "Comments": [record.comments for record in records],
+                    "EOD Status": [record.eod_status for record in records],
+                    "Approval Status": [record.approval_status for record in records],
+                    }
+        df = pd.DataFrame(data)
+        return df
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class BlacklistTokenView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            response_data = {'Message':'Logged out Successfully'}
+            return Response(response_data,status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        
+        
+class EditTimeSheetRecordsView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = EditTimeSheetRecordsSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                data = serializer.validated_data
+                comments = data.get('comments')
+                timesheet_id = data.get('timesheet_id')
+                timesheet = TimeSheetDetails.objects.get(timesheet_id=timesheet_id)
+                timesheet.comments = comments
+                timesheet.save()
+                
+                return Response({"Message": "Updated successfully"}, status=status.HTTP_205_RESET_CONTENT)
+            except Exception as e:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+class ProjectsToClinetsView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = ProjectsToClientsSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                data = serializer.validated_data
+                client_name = data.get('client_name')
+                client = Client.objects.get(name=client_name)
+                projects = Project.objects.filter(client=client.id)
+                data = {
+                            "Message": "Successfull",
+                            "data": [project.name for project in projects]
+                        }
+                
+                return Response(data,status=status.HTTP_205_RESET_CONTENT)
+                
+            except Exception as e:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

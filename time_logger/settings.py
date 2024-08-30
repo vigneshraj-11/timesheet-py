@@ -26,7 +26,8 @@ SECRET_KEY = 'django-insecure-j_%(!3#+l#6t(py+vxm!gh*7t9!x1u)i2vbo_b972=fbyuo!-*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = []
+
 
 # Application definition
 
@@ -39,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'users',
     'corsheaders',
 ]
@@ -158,10 +160,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
-    'SLIDING_TOKEN_LIFETIME': timedelta(days=30),
-    'SLIDING_TOKEN_REFRESH_LIFETIME_LATE_USER': timedelta(days=7),
-    'SLIDING_TOKEN_LIFETIME_LATE_USER': timedelta(days=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    "ALGORITHM": "HS256",
+    'TOKEN_BLACKLIST_ENABLED': True,
+    'TOKEN_BLACKLIST_MODEL': 'api.BlacklistedToken',
 }
 
 CORS_ALLOW_ALL_ORIGINS = True

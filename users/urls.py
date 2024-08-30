@@ -25,7 +25,10 @@ urlpatterns = [
     path('bulk_upload/', BulkUploadView.as_view(), name='bulk_upload'),
      path('add_task/', AddTaskAPIView.as_view(), name='add_task'),
      path('missed_task/', MissedTaskAPIView.as_view(), name='missed_task'),
-     path('report_email_to_frm/', EmailToFRMAPIView.as_view(), name='report_email_to_frm'),
+     path('report_email/', EmailTimeSheetsAPIView.as_view(), name='report_email'),
      path('user/<str:email>/', UserByEmailView.as_view(), name='user_by_email'),    
      path('get_timesheet_records/', EmployeeRecordsView.as_view(), name='get_timesheet_records'), 
+     path('logout/blacklist/', BlacklistTokenView.as_view(),name='blacklist'), 
+     path('edittimesheetrecords/', EditTimeSheetRecordsView.as_view(),name='edittimesheetrecords'),
+     path('projectstoclient/', ProjectsToClinetsView.as_view(),name='projectstoclient'),
 ]

@@ -117,9 +117,8 @@ class TimeSheetDetailsSerializer(serializers.ModelSerializer):
 
     # def get_activity_name(self, obj):
     #     return obj.activity.name
-
         
-        
+ 
 class AddTaskSerializer(serializers.Serializer):
     activity_id = serializers.IntegerField()
     assigned_by = serializers.CharField(max_length=255)
@@ -153,12 +152,10 @@ class MissedTaskSerializer(serializers.Serializer):
         return data
         
         
-class EmailTOFRMSerializer(serializers.Serializer):
-    file_path = serializers.CharField(max_length=255)
-    employee_id = serializers.IntegerField()
-    employee_name = serializers.CharField(max_length=255)
-    frm_name = serializers.CharField(max_length=255)
-    frm_email_id = serializers.EmailField()
+class EmailTimeSheetsSerializer(serializers.Serializer):
+    employee = serializers.BooleanField(default=False)
+    frm = serializers.BooleanField(default=False)
+    management = serializers.BooleanField(default=False)
     
     
 class EmployeeRecordSerializer(serializers.Serializer):
@@ -183,3 +180,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['email'] = user.email
 
         return data
+    
+    
+class EditTimeSheetRecordsSerializer(serializers.Serializer):
+    comments = serializers.CharField(required=True)
+    timesheet_id = serializers.IntegerField(required=True)
+    
+    
+class ProjectsToClientsSerializer(serializers.Serializer):
+    client_name = serializers.CharField(required=True)
