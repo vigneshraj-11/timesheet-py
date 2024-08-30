@@ -9,12 +9,13 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.core.exceptions import ValidationError
 import pandas as pd
 from rest_framework import viewsets
-from pytz import timezone 
+from pytz import timezone
 import os
 from datetime import datetime
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import action
 
 
 # ####---------------------------------------------------------home-------------------------------------------------------------####
@@ -25,21 +26,21 @@ from rest_framework_simplejwt.tokens import RefreshToken
 #     def get(self, request):
 #         content = {'message': 'Hello, World!'}
 #         return Response(content)
-    
-    
+
+
 ####---------------------------------------------------------create user-------------------------------------------------------------####
 class CreateUserView(APIView):
     authentication_classes = []  # Disable authentication
     permission_classes = [AllowAny]  # Disable authentication for this API
-    
-    
+
+
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
 
         # Autogenerate a password
         password = f"{data['first_name']}@123"
         data['password'] = password
-        
+
         serializer = CreateUserSerializer(data=data)
         if serializer.is_valid():
             try:
@@ -51,20 +52,20 @@ class CreateUserView(APIView):
                         location=serializer.validated_data['location'],
                         office_location=serializer.validated_data['office_location'],
                         frm=serializer.validated_data['frm']
-            
+
                         )
                 user.set_password(f"{user.first_name.capitalize()}@123")
                 user.save()
-                
+
                 # Generate JWT tokens
                 # serializer = CustomTokenObtainPairSerializer(data={'username': 'admin1', 'password': 'tm@123'})
                 # serializer.is_valid(raise_exception=True)
                 # tokens = serializer.validated_data
-                
+
                 subject = 'Your New Account Information'
                 message = f'Hello {user.first_name},\n\nYour account has been created successfully.\n\nUsername: {user.email}\nPassword: {password}\n\nPlease change your password after logging in.'
                 recipient = user.email
-                
+
                 if send_email_via_outlook(subject=subject, body=message, to_email=recipient):
                     print("Email sent successfully!")
             except Exception as exception:
@@ -93,8 +94,8 @@ class ChangePasswordView(APIView):
             else:
                 return Response({'password_length': 'less than 6 charecters!'}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-    
+
+
 ####------------------------------------------------------forgot password-----------------------------------------------------------------####
 class ForgotPasswordView(APIView):
     def post(self, request):
@@ -113,8 +114,8 @@ class ForgotPasswordView(APIView):
             else:
                 return Response({'password_length': 'less than 6 charecters!'}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
+
+
 ####------------------------------------------------------get all user------------------------------------------------------####
 class ListUsersView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -125,13 +126,13 @@ class ListUsersView(APIView):
             users = CustomUser.objects.all()
             if not users:
                 return Response({"message": "No users found"}, status=status.HTTP_204_NO_CONTENT)
-            
+
             serializer = UserListSerializer(users, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
 class UsersView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -141,10 +142,10 @@ class UsersView(APIView):
             users = CustomUser.objects.all()
             if not users:
                 return Response({"message": "No users found"}, status=status.HTTP_204_NO_CONTENT)
-            
+
             serializer = UserListSerializer(users, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -157,10 +158,10 @@ class UserByEmailView(APIView):
             user = get_object_or_404(CustomUser, email=email)
             serializer = UserListSerializer(user)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
 ####------------------------------------------------------disable a user------------------------------------------------------####
 class DisableUserView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -180,9 +181,9 @@ class DisableUserView(APIView):
             except Exception as e:
                 return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
-####------------------------------------------------------bulk upload-----------------------------------------------------####    
+
+####------------------------------------------------------bulk upload-----------------------------------------------------####
 class BulkUploadView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -199,7 +200,7 @@ class BulkUploadView(APIView):
                     df = pd.read_excel(file)
                 else:
                     return Response({"error": "Unsupported file type"}, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 # Iterate through the DataFrame and create users
                 for _, row in df.iterrows():
                     email = row.get('email')
@@ -223,12 +224,34 @@ class BulkUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-####------------------------------------------------------CRUD for Client&Project details-----------------------------------------------------####    
+####------------------------------------------------------CRUD for Client&Project details-----------------------------------------------------####
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.filter(is_active=True)
     serializer_class = ClientSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ClientNameSerializer
+        return super().get_serializer_class()
     
     
+    @action(detail=True, methods=['get'], url_path='by-emp')
+    def get_clients_by_employee(self, request, pk=None):
+        # Fetch the employee based on the provided emp_id (pk)
+        employee = get_object_or_404(CustomUser, pk=pk)  # Assuming Employee model exists
+        
+        # Get the list of client IDs from the employee's related field
+        client_ids = employee.client_ids  # Adjust 'client_ids' to your actual field name
+        
+        # Fetch the clients using the IDs
+        clients = Client.objects.filter(id__in=client_ids, is_active=True)
+        
+        # Serialize the client names
+        serializer = ClientNameSerializer(clients, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
@@ -239,8 +262,8 @@ class ClientViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_active=True)
     serializer_class = ProjectSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
@@ -248,12 +271,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-####------------------------------------------------------CRUD for Activity&SubActivity details-----------------------------------------------------####    
+####------------------------------------------------------CRUD for Activity&SubActivity details-----------------------------------------------------####
 class ActivityViewSet(viewsets.ModelViewSet):
     queryset = Activity.objects.filter(is_active=True)
     serializer_class = ActivitySerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
@@ -264,8 +287,8 @@ class ActivityViewSet(viewsets.ModelViewSet):
 class SubActivityViewSet(viewsets.ModelViewSet):
     queryset = SubActivity.objects.filter(is_active=True)
     serializer_class = SubActivitySerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
@@ -277,90 +300,90 @@ class SubActivityViewSet(viewsets.ModelViewSet):
 class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.filter(is_active=True)
     serializer_class = RoleSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+
 ####------------------------------------------------------CRUD for Department-----------------------------------------------------####
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.filter(is_active=True)
     serializer_class = DepartmentSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+
 ####------------------------------------------------------CRUD for Shift-----------------------------------------------------####
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.filter(is_active=True)
     serializer_class = ShiftSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+
 ####------------------------------------------------------CRUD for Location-----------------------------------------------------####
 class LocationViewSet(viewsets.ModelViewSet):
     queryset = Location.objects.filter(is_active=True)
     serializer_class = LocationSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+
 ####------------------------------------------------------CRUD for OfficeLocation-----------------------------------------------------####
 class OfficeLocationViewSet(viewsets.ModelViewSet):
     queryset = OfficeLocation.objects.filter(is_active=True)
     serializer_class = OfficeLocationSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+
 ####------------------------------------------------------CRUD for Rule-----------------------------------------------------####
 class RulesViewSet(viewsets.ModelViewSet):
     queryset = Rule.objects.filter(is_active=True)
     serializer_class = RuleLocationSerializer
-    
-    
+
+
     def destroy(self, request, *args, **kwargs):
         client = self.get_object()
         client.is_active = False
         client.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
+
 
 ####------------------------------------------------------Add task- Timesheet API-----------------------------------------------------####
 class AddTaskAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         serializer = AddTaskSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            
+
             # Extracting validated data
             activity_id = data.get('activity_id')
             assigned_by = data.get('assigned_by')
@@ -382,9 +405,7 @@ class AddTaskAPIView(APIView):
                 timesheets = TimeSheetDetails.objects.filter(
                     date=current_date,
                     employee=employee,
-                    activity_name=activity_id,
-                    client_name=Client.objects.get(name=client_name).id,
-                    project_name=project_id,
+                    end_time=None,
                 ).all()
                 for timesheet in timesheets:
                     if timesheet and not timesheet.end_time:
@@ -433,7 +454,7 @@ class MissedTaskAPIView(APIView):
             start_time = data.get('start_time')
             end_time = data.get('end_time')
             comments = data.get('comments')
-            
+
             # Current date
             current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
             current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
@@ -443,22 +464,22 @@ class MissedTaskAPIView(APIView):
                 employee = CustomUser.objects.get(id=employee_id)
                 client = Client.objects.get(name=client_name)
                 project = Project.objects.get(id=project_id)
-                
+
                 # To find the tasks having end_time is null.
-                overlapping_timesheets_end_time_none = TimeSheetDetails.objects.filter(
-                    employee=employee_id,
-                    date=current_date,
-                    end_time=None,
-                    client_name=Client.objects.get(name=client_name).id,
-                    project_name=project_id,
-                    activity_name=activity_id
-                ).all()
-                
-                if overlapping_timesheets_end_time_none.exists():
-                    for overlapping_timesheet_end_time_none in overlapping_timesheets_end_time_none:
-                            overlapping_timesheet_end_time_none.end_time = current_time
-                            overlapping_timesheet_end_time_none.save()
-                        
+                # overlapping_timesheets_end_time_none = TimeSheetDetails.objects.filter(
+                #     employee=employee_id,
+                #     date=current_date,
+                #     end_time=None,
+                #     # client_name=Client.objects.get(name=client_name).id,
+                #     # project_name=project_id,
+                #     # activity_name=activity_id
+                # ).all()
+
+                # if overlapping_timesheets_end_time_none.exists():
+                #     for overlapping_timesheet_end_time_none in overlapping_timesheets_end_time_none:
+                #             overlapping_timesheet_end_time_none.end_time = current_time
+                #             overlapping_timesheet_end_time_none.save()
+
                 # Check for existing timesheet records that overlap with the provided start and end times
                 overlapping_timesheets = TimeSheetDetails.objects.filter(
                     employee=employee_id,
@@ -469,7 +490,7 @@ class MissedTaskAPIView(APIView):
                     project_name=project_id,
                     activity_name=activity_id
                 )
-                
+
                 if overlapping_timesheets.exists():
                     for ts in overlapping_timesheets:
                         # if not ts.end_time:
@@ -502,7 +523,7 @@ class MissedTaskAPIView(APIView):
                         else:
                             # Completely overlapping timesheet, delete or adjust as needed
                             ts.delete()
-                            
+
                 # Now create the new timesheet entry
                 new_timesheet = TimeSheetDetails.objects.create(
                     activity_name=activity,
@@ -526,7 +547,7 @@ class MissedTaskAPIView(APIView):
                 Response(exception.args, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 
 ####------------------------------------------------------Get employee timesheet records- Timesheet API-----------------------------------------------------####
 class EmployeeRecordsView(APIView):
@@ -537,21 +558,21 @@ class EmployeeRecordsView(APIView):
         serializer = EmployeeRecordSerializer(data=request.data)
         if serializer.is_valid():
             employee_id = serializer.validated_data['employee_id']
-            
+
             # Use the Asia/Kolkata timezone
             current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
             start_of_month = datetime.now(timezone("Asia/Kolkata")).replace(day=1).strftime('%Y-%m-%d')
-            
+
             # Query the records for the given employee_id from the start of the month to today
             records = TimeSheetDetails.objects.filter(
                 employee_id=employee_id,
                 date__range=[start_of_month, current_date]
             )
-            
+
             # Serialize the records
             records_serializer = TimeSheetDetailsSerializer(records, many=True)
             return Response(records_serializer.data, status=status.HTTP_200_OK)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -560,18 +581,18 @@ class EmployeeRecordsView(APIView):
 # class EmailTimeSheetsAPIView(APIView):
 #     authentication_classes = [JWTAuthentication]
 #     permission_classes = [IsAuthenticated]
-    
+
 #     current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
 #     current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
 #     def post(self, request):
 #         serializer = EmailTimeSheetsSerializer(data=request.data)
-        
+
 #         if serializer.is_valid():
 #             data = serializer.validated_data
 #             employee = data.get("employee", None)
 #             frm = data.get("frm", None)
 #             management = data.get("management", None)
-            
+
 #             if employee:
 #                 employees = CustomUser.objects.all()
 #                 for emp in employees:
@@ -579,7 +600,7 @@ class EmployeeRecordsView(APIView):
 #                     if records.exists():
 #                         file_path = f"./files/emps/{emp.first_name}_daily_report_{self.current_date}.xlsx"
 #                         file_path = self.create_excel_file(path=file_path, records=records)
-                            
+
 #                         # file_path = self.create_excel(records, emp.first_name)
 #                         subject = f"Daily report of Emp: {emp.first_name} {emp.last_name}--{emp.id}"
 #                         message = f"Hello {emp.first_name},\n\nPlease find the attached file with today's task report.\n\nThanks."
@@ -589,7 +610,7 @@ class EmployeeRecordsView(APIView):
 #                             print(f"Email not sent to {emp.first_name} {emp.last_name}--{emp.id}")
 #                     else:
 #                         print(f"Records doesn't exist for {emp.first_name} {emp.last_name}--{emp.id}")
-                
+
 #             if frm:
 #                 frms = FRM.objects.all()
 #                 for frm in frms:
@@ -604,7 +625,7 @@ class EmployeeRecordsView(APIView):
 #                     emps = CustomUser.objects.filter(frm=frm.id)
 #                     for emp in emps:
 #                         records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
-                        
+
 #                         if records.exists():
 #                             time_format = "%H:%M:%S"
 #                             start_time = datetime.strptime(min([record.start_time for record in records]), time_format)
@@ -628,7 +649,7 @@ class EmployeeRecordsView(APIView):
 #                             data['Total Hours'].append(working_hours)
 #                             file_path = f"./files/frm/{emp.first_name}_daily_report_{self.current_date}.xlsx"
 #                             file_path = self.create_excel_file(records=records, path=file_path)
-                            
+
 #                             email_attachment_path_list.append(file_path)
 #                         else:
 #                             print(f"No records founf for {emp.first_name} {emp.last_name}--{emp.id} => FRM {frm.name}")
@@ -641,16 +662,16 @@ class EmployeeRecordsView(APIView):
 #                         print(f"Email sent successfully to {frm.name} -- {frm.id}")
 #                     else:
 #                         print(f"Email not sent to {frm.name} -- {frm.id}")
-                        
+
 #             if management:
 #                 pass
-                            
+
 #             return Response({"Message":f'Email was sent successfully'
 #                 }, status=status.HTTP_201_CREATED)
-                
+
 #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
- 
- 
+
+
 class EmailTimeSheetsAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -664,7 +685,7 @@ class EmailTimeSheetsAPIView(APIView):
             employee = data.get("employee", None)
             frm = data.get("frm", None)
             management = data.get("management", None)
-            
+
             if employee:
                 employees = CustomUser.objects.all()
 
@@ -677,7 +698,7 @@ class EmailTimeSheetsAPIView(APIView):
                         with pd.ExcelWriter(file_path) as writer:
                             df1 = self.create_excel_file(path=file_path, records=records)
                             df1.to_excel(writer, sheet_name=emp.first_name, index=False)
-                            
+
                         subject = f"Daily report of Emp: {emp.first_name} {emp.last_name}--{emp.id}"
                         message = f"Hello {emp.first_name},\n\nPlease find the attached file with today's task report.\n\nThanks."
 
@@ -691,7 +712,7 @@ class EmailTimeSheetsAPIView(APIView):
 
             if frm:
                 frms = FRM.objects.all()
-                
+
                 for frm in frms:
                     email_attachment_path_list = []
                     data = {
@@ -703,7 +724,7 @@ class EmailTimeSheetsAPIView(APIView):
                     }
                     emps = CustomUser.objects.filter(frm=frm.id)
                     file_path = f"./files/frm/{frm.name}_daily_report_{self.current_date}.xlsx"
-                    
+
                     with pd.ExcelWriter(file_path) as writer:
 
                         for emp in emps:
@@ -747,16 +768,16 @@ class EmailTimeSheetsAPIView(APIView):
                             print(f"Email sent successfully to {frm.name} -- {frm.id}")
                         else:
                             print(f"Email not sent to {frm.name} -- {frm.id}")
-                            
+
             if management:
                 pass
 
             return Response({"Message":f'Email was sent successfully'
                 }, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
-                            
-                            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
     def create_excel_file(self, path, data=None, records=None):
         if records:
             data = {
@@ -791,8 +812,8 @@ class BlacklistTokenView(APIView):
             return Response(response_data,status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        
-        
+
+
 class EditTimeSheetRecordsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -806,14 +827,14 @@ class EditTimeSheetRecordsView(APIView):
                 timesheet = TimeSheetDetails.objects.get(timesheet_id=timesheet_id)
                 timesheet.comments = comments
                 timesheet.save()
-                
+
                 return Response({"Message": "Updated successfully"}, status=status.HTTP_205_RESET_CONTENT)
             except Exception as e:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-    
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
+
+
 class ProjectsToClinetsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -829,11 +850,10 @@ class ProjectsToClinetsView(APIView):
                             "Message": "Successfull",
                             "data": [project.name for project in projects]
                         }
-                
+
                 return Response(data,status=status.HTTP_205_RESET_CONTENT)
-                
+
             except Exception as e:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-    
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    

@@ -172,12 +172,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Fetch the user using the email in attrs
         email = self.user.email
         user = CustomUser.objects.get(email=email)
+        frm = FRM.objects.get(id=user.frm.id)
 
         # Add custom fields to the response
         data['userid'] = user.id
         data['first_name'] = user.first_name
         data['last_name'] = user.last_name
         data['email'] = user.email
+        data['frm_name'] = frm.name
 
         return data
     
@@ -189,3 +191,21 @@ class EditTimeSheetRecordsSerializer(serializers.Serializer):
     
 class ProjectsToClientsSerializer(serializers.Serializer):
     client_name = serializers.CharField(required=True)
+    
+    
+class ClientNameSerializer(serializers.ModelSerializer):
+    projects = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Client
+        fields = ['id', 'name', 'projects']  # Include client ID and projects
+
+    def get_projects(self, obj):
+        projects = obj.projects.filter(is_active=True)
+        return [
+            {
+                'project_id': project.id,
+                'project_name': project.name
+            }
+            for project in projects
+        ]

@@ -74,6 +74,21 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_admin', True)
         return self.create_user(email, password, **extra_fields)
+
+
+class Client(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    location = models.CharField(max_length=30, null=True, default=True)
+    contact_person = models.CharField(max_length=30, null=True, default=True)
+    contact_person_email = models.EmailField(unique=True)
+    contact_email = models.EmailField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+    is_active = models.BooleanField(default=True, null=True)
+
+
+    def __str__(self):
+        return self.name
     
 
 class CustomUser(AbstractBaseUser):
@@ -90,6 +105,7 @@ class CustomUser(AbstractBaseUser):
     password = models.CharField(max_length=128)
     role = models.CharField(max_length=28, null=True, default=None)
     rules = models.CharField(max_length=30, null=True, default=None)
+    client_ids = models.JSONField(models.IntegerField(), blank=True, default=list)
 
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
@@ -139,21 +155,6 @@ class Department(models.Model):
         return self.name
 
 
-class Client(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    location = models.CharField(max_length=30, null=True, default=True)
-    contact_person = models.CharField(max_length=30, null=True, default=True)
-    contact_person_email = models.EmailField(unique=True)
-    contact_email = models.EmailField(unique=True)
-    created_at = models.DateTimeField(auto_now_add=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True)
-    is_active = models.BooleanField(default=True, null=True)
-
-
-    def __str__(self):
-        return self.name
-
-
 class Project(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='projects')
     name = models.CharField(max_length=255, unique=True)
@@ -170,6 +171,7 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
+
 class Activity(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='activities')
     name = models.CharField(max_length=255, unique=True)
@@ -181,6 +183,7 @@ class Activity(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class SubActivity(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activities')
