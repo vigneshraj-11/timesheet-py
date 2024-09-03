@@ -113,7 +113,15 @@ DATABASES = {
         'PASSWORD': '!ctd!@!2o24@!',
         'HOST': '37.27.125.244',
         'PORT': '3306',
-    }
+    },
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'time_logger_live',
+    #     'USER': 'root',
+    #     'PASSWORD': '123456',
+    #     'HOST': '127.0.0.1',
+    #     'PORT': '3306',
+    # }
 }
 
 

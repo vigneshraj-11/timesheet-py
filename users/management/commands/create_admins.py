@@ -49,7 +49,7 @@ class Command(BaseCommand):
                 )
 
                 if created:
-                    user.set_password(f"{admin_data['first_name'].capitalize()}@123")
+                    user.set_password(f"Welcome@123")
                     user.save()
 
                 serializer = CustomTokenObtainPairSerializer(data={'email': admin_data['email'], 'password': f"{admin_data['first_name'].capitalize()}@123"})

@@ -192,6 +192,16 @@ class EditTimeSheetRecordsSerializer(serializers.Serializer):
 class ProjectsToClientsSerializer(serializers.Serializer):
     client_name = serializers.CharField(required=True)
     
+
+class EODSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField(required=True)
+    message = serializers.CharField(required=True)
+    
+
+class PauseResumeTaskSerializer(serializers.Serializer):
+    message = serializers.CharField(required=True)
+    timesheet_id = serializers.IntegerField(required=True)
+    
     
 class ClientNameSerializer(serializers.ModelSerializer):
     projects = serializers.SerializerMethodField()

@@ -30,8 +30,8 @@ def send_email_via_outlook(subject, body, to_email, attachments=None):
     """
     smtp_server = 'smtp.office365.com'
     smtp_port = 587
-    from_email = os.getenv("OFFICE_OUTLOOK_EMAIL_ID")  # Use your default from email
-    password = os.getenv("OFFICE_OUTLOOK_EMAIL_ID_PASSWORD")
+    from_email = "vn@ctdtechs.com"  # Use your default from email
+    password = "Vignesh@1198"
     # Create the email message
     message = MIMEMultipart()
     message['From'] = from_email  # Even if this is a placeholder, SMTP servers typically require a valid email.

@@ -54,7 +54,7 @@ class CreateUserView(APIView):
                         frm=serializer.validated_data['frm']
 
                         )
-                user.set_password(f"{user.first_name.capitalize()}@123")
+                user.set_password(f"Welcome@123")
                 user.save()
 
                 # Generate JWT tokens
@@ -395,6 +395,15 @@ class AddTaskAPIView(APIView):
             # Current date and time
             current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
             current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+            
+            eod_timesheets = TimeSheetDetails.objects.filter(
+                                    date=current_date,
+                                    employee=employee_id,
+                                    eod_status='yes'
+                                ).all()
+            if eod_timesheets.exists():
+                return Response({"Message":'EOD was submitted, Timesheet record not created!'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 employee = CustomUser.objects.get(id=employee_id)
@@ -457,28 +466,22 @@ class MissedTaskAPIView(APIView):
 
             # Current date
             current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
-            current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+            
+            eod_timesheets = TimeSheetDetails.objects.filter(
+                                    date=current_date,
+                                    employee=employee_id,
+                                    eod_status='yes'
+                                ).all()
+            if eod_timesheets.exists():
+                return Response({"Message":'EOD was submitted, Timesheet record not created!'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
             try:
                 # Get or create necessary instances
                 activity = Activity.objects.get(id=activity_id)
                 employee = CustomUser.objects.get(id=employee_id)
                 client = Client.objects.get(name=client_name)
                 project = Project.objects.get(id=project_id)
-
-                # To find the tasks having end_time is null.
-                # overlapping_timesheets_end_time_none = TimeSheetDetails.objects.filter(
-                #     employee=employee_id,
-                #     date=current_date,
-                #     end_time=None,
-                #     # client_name=Client.objects.get(name=client_name).id,
-                #     # project_name=project_id,
-                #     # activity_name=activity_id
-                # ).all()
-
-                # if overlapping_timesheets_end_time_none.exists():
-                #     for overlapping_timesheet_end_time_none in overlapping_timesheets_end_time_none:
-                #             overlapping_timesheet_end_time_none.end_time = current_time
-                #             overlapping_timesheet_end_time_none.save()
 
                 # Check for existing timesheet records that overlap with the provided start and end times
                 overlapping_timesheets = TimeSheetDetails.objects.filter(
@@ -493,9 +496,6 @@ class MissedTaskAPIView(APIView):
 
                 if overlapping_timesheets.exists():
                     for ts in overlapping_timesheets:
-                        # if not ts.end_time:
-                        #     ts.end_time = current_time
-                        #     ts.save()
                         # Adjust the existing timesheets to not overlap
                         if convert_str_to_time(ts.start_time) < start_time and convert_str_to_time(ts.end_time) > end_time:
                             # Split the existing timesheet into two
@@ -534,7 +534,7 @@ class MissedTaskAPIView(APIView):
                     comments=comments,
                     end_time=end_time,
                     client_name=client,
-                    project_name=project
+                    project_name=project,
                 )
 
                 return Response({
@@ -565,111 +565,15 @@ class EmployeeRecordsView(APIView):
 
             # Query the records for the given employee_id from the start of the month to today
             records = TimeSheetDetails.objects.filter(
-                employee_id=employee_id,
-                date__range=[start_of_month, current_date]
-            )
+                            employee_id=employee_id,
+                            date__range=[start_of_month, current_date]
+                        ).order_by('-date', '-start_time')
 
             # Serialize the records
             records_serializer = TimeSheetDetailsSerializer(records, many=True)
             return Response(records_serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-####------------------------------------------------------Email to FRM- Timesheet API-----------------------------------------------------####
-# class EmailTimeSheetsAPIView(APIView):
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
-#     current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
-#     def post(self, request):
-#         serializer = EmailTimeSheetsSerializer(data=request.data)
-
-#         if serializer.is_valid():
-#             data = serializer.validated_data
-#             employee = data.get("employee", None)
-#             frm = data.get("frm", None)
-#             management = data.get("management", None)
-
-#             if employee:
-#                 employees = CustomUser.objects.all()
-#                 for emp in employees:
-#                     records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
-#                     if records.exists():
-#                         file_path = f"./files/emps/{emp.first_name}_daily_report_{self.current_date}.xlsx"
-#                         file_path = self.create_excel_file(path=file_path, records=records)
-
-#                         # file_path = self.create_excel(records, emp.first_name)
-#                         subject = f"Daily report of Emp: {emp.first_name} {emp.last_name}--{emp.id}"
-#                         message = f"Hello {emp.first_name},\n\nPlease find the attached file with today's task report.\n\nThanks."
-#                         if send_email_via_outlook(subject=subject, body=message, to_email="mtsmech04@gmail.com", attachments=[file_path]):
-#                             print(f"Email sent successfully to {emp.first_name} {emp.last_name}--{emp.id}")
-#                         else:
-#                             print(f"Email not sent to {emp.first_name} {emp.last_name}--{emp.id}")
-#                     else:
-#                         print(f"Records doesn't exist for {emp.first_name} {emp.last_name}--{emp.id}")
-
-#             if frm:
-#                 frms = FRM.objects.all()
-#                 for frm in frms:
-#                     email_attachment_path_list = []
-#                     data = {
-#                         "Employee Name":[],
-#                         "Start Time": [],
-#                         "End Time": [],
-#                         "Break Hours": [],
-#                         "Total Hours": []
-#                     }
-#                     emps = CustomUser.objects.filter(frm=frm.id)
-#                     for emp in emps:
-#                         records = TimeSheetDetails.objects.filter(employee=emp.id, date=self.current_date)
-
-#                         if records.exists():
-#                             time_format = "%H:%M:%S"
-#                             start_time = datetime.strptime(min([record.start_time for record in records]), time_format)
-#                             end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
-#                             working_hours = end_time - start_time
-#                             break_hours = '------'
-#                             break_records = TimeSheetDetails.objects.filter(
-#                                                 employee=emp.id,
-#                                                 date=self.current_date, activity_name__name="Tea Break"
-#                                             ).filter(activity_name__name='Lunch Break')
-#                             if break_records.exists():
-#                                 start_time = datetime.strptime(min([record.start_time for record in break_records]), time_format)
-#                                 end_time = datetime.strptime(max([record.end_time if record.end_time else self.current_time for record in records]), time_format)
-#                                 break_hours = end_time - start_time
-#                                 working_hours = working_hours - break_hours
-#                             working_hours = convert_time_str(working_hours)
-#                             data['Employee Name'].append(f'{emp.first_name} {emp.last_name}')
-#                             data['Start Time'].append(start_time.time().strftime("%H:%M:%S"))
-#                             data['End Time'].append(end_time.time().strftime("%H:%M:%S"))
-#                             data['Break Hours'].append(break_hours)
-#                             data['Total Hours'].append(working_hours)
-#                             file_path = f"./files/frm/{emp.first_name}_daily_report_{self.current_date}.xlsx"
-#                             file_path = self.create_excel_file(records=records, path=file_path)
-
-#                             email_attachment_path_list.append(file_path)
-#                         else:
-#                             print(f"No records founf for {emp.first_name} {emp.last_name}--{emp.id} => FRM {frm.name}")
-#                     file_path = f"./files/frm/{frm.name}_daily_report_{self.current_date}.xlsx"
-#                     file_path = self.create_excel_file(data=data, path=file_path)
-#                     email_attachment_path_list.append(file_path)
-#                     subject = f"Daily report of Employee"
-#                     message = f"Hello {frm.name},\n\nPlease find the attached files with today's task report of employees.\n\nThanks."
-#                     if send_email_via_outlook(subject=subject, body=message, to_email=frm.email, attachments=email_attachment_path_list):
-#                         print(f"Email sent successfully to {frm.name} -- {frm.id}")
-#                     else:
-#                         print(f"Email not sent to {frm.name} -- {frm.id}")
-
-#             if management:
-#                 pass
-
-#             return Response({"Message":f'Email was sent successfully'
-#                 }, status=status.HTTP_201_CREATED)
-
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class EmailTimeSheetsAPIView(APIView):
@@ -857,3 +761,148 @@ class ProjectsToClinetsView(APIView):
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class EODView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    current_date = datetime.now(timezone("Asia/Kolkata")).strftime('%Y-%m-%d')
+    current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+    def post(self, request):
+        serializer = EODSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                data = serializer.validated_data
+                message = data.get('message')
+                employee_id = data.get('employee_id')
+                employee_timesheets = TimeSheetDetails.objects.filter(
+                                            employee=employee_id,
+                                            date=self.current_date,
+                                            eod_status=None,
+                                            end_time=None
+                                            )
+                
+                if employee_timesheets.exists():
+                    for employee_timesheet in employee_timesheets:
+                        employee_timesheet.eod_status = message
+                        employee_timesheet.end_time = self.current_time
+                        employee_timesheet.save()
+                    
+                data = {
+                            "Message": "Successfully updated EOD status"
+                        }
+
+                return Response(data,status=status.HTTP_205_RESET_CONTENT)
+
+            except Exception as e:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PauseTaskView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = PauseResumeTaskSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                data = serializer.validated_data
+                message = data.get('message')
+                timesheet_id = data.get('timesheet_id')
+                employee_timesheet = TimeSheetDetails.objects.filter(
+                                            timesheet_id=timesheet_id,
+                                            end_time=None
+                                            ).first()
+                
+                if employee_timesheet:
+                    employee_timesheet.pause_reason = message
+                    current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+                    employee_timesheet.end_time = current_time
+                    employee_timesheet.save()
+                    
+                    return Response({
+                        'status': 'success',
+                        'timesheet_id': employee_timesheet.timesheet_id,
+                        'start_time': employee_timesheet.start_time,
+                        'end_time': employee_timesheet.end_time,
+                        "pause_reason": employee_timesheet.pause_reason
+                    }, status=status.HTTP_201_CREATED)
+                    
+                return Response({
+                    'status': 'Task already closed!'
+                }, status=status.HTTP_400_BAD_REQUEST)    
+
+            except Exception as e:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResumeTaskView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = PauseResumeTaskSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                current_time = datetime.now(timezone("Asia/Kolkata")).strftime('%H:%M:%S')
+                data = serializer.validated_data
+                message = data.get('message')
+                timesheet_id = data.get('timesheet_id')
+                employee_timesheet = TimeSheetDetails.objects.filter(
+                                            timesheet_id=timesheet_id,
+                                            # pause_reason=message
+                                            ).first()
+                
+                employee_timesheet.pause_reason = None
+                employee_timesheet.save()
+                if employee_timesheet:
+                    timesheet_new_pause = TimeSheetDetails.objects.create(
+                                            employee=employee_timesheet.employee,
+                                            activity_name=Activity.objects.get(id=31),
+                                            client_name=employee_timesheet.client_name,
+                                            project_name=employee_timesheet.project_name,
+                                            assigned_by=employee_timesheet.assigned_by,
+                                            comments=message,
+                                            date=employee_timesheet.date,
+                                            custom_employee_id=employee_timesheet.custom_employee_id,
+                                            end_time=current_time,
+                                            eod_status=employee_timesheet.eod_status,
+                                            start_time=employee_timesheet.end_time,
+                                            pause_reason=employee_timesheet.pause_reason,
+                                            approval_status=employee_timesheet.approval_status
+                                        )
+                    timesheet_new = TimeSheetDetails.objects.create(
+                                            employee=employee_timesheet.employee,
+                                            activity_name=employee_timesheet.activity_name,
+                                            client_name=employee_timesheet.client_name,
+                                            project_name=employee_timesheet.project_name,
+                                            assigned_by=employee_timesheet.assigned_by,
+                                            comments=employee_timesheet.comments,
+                                            date=employee_timesheet.date,
+                                            custom_employee_id=employee_timesheet.custom_employee_id,
+                                            end_time=None,
+                                            eod_status=employee_timesheet.eod_status,
+                                            start_time=current_time,
+                                            pause_reason=employee_timesheet.pause_reason,
+                                            approval_status=employee_timesheet.approval_status                                            
+                                        )
+                    return Response({
+                        'status': 'success',
+                        'timesheet_id': timesheet_new.timesheet_id,
+                        'start_time': timesheet_new.start_time,
+                        'end_time': timesheet_new.end_time,
+                        "pause_reason": timesheet_new.pause_reason
+                    }, status=status.HTTP_201_CREATED)
+                    
+                return Response({
+                    'status': 'No record found!',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            except Exception as e:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    

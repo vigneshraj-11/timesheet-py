@@ -31,4 +31,7 @@ urlpatterns = [
      path('logout/blacklist/', BlacklistTokenView.as_view(),name='blacklist'), 
      path('edittimesheetrecords/', EditTimeSheetRecordsView.as_view(),name='edittimesheetrecords'),
      path('projectstoclient/', ProjectsToClinetsView.as_view(),name='projectstoclient'),
+     path('eod/', EODView.as_view(),name='eod'),
+     path('pausetask/', PauseTaskView.as_view(),name='pausetask'),
+     path('resumetask/', ResumeTaskView.as_view(),name='resumetask'),
 ]
